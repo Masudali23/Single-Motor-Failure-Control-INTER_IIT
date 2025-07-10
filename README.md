@@ -1,151 +1,282 @@
-# IdeaForge Inter IIT 13.0 Project: Robust Position and Altitude Control Quadrotor with Single Motor Failure
+# Ideaforge Inter-IIT High Prep 
+# PX4 Modified Firmware
+
+Welcome to the modified PX4 firmware package. This project builds on the PX4 open-source flight control software with changes tailored to improve performance during motor failure scenarios. It includes tuning of the EKF2 estimator and modifications to the PX4 control algorithm for handling motor failures. Additionally, a motor failure plugin has been incorporated to simulate and test failure scenarios effectively.
+
+You can find the report [here](report.pdf)
+
+We have provided the following files/folders in the code folder
+- motor_failure_detect_custom - module
+- accel_indi -module
+- msg folder with custom uorb topic
+- ekf2 module folder
+- iris - modified iris model folder
+- control_allocator module
+- mc_pos_control module
+- mc_rate_control module
+- default.px4board
+- motor failue plugin
+- CMakeList.txt
+- zipped fault_tolerant_control
+---
 
 ## Table of Contents
-- [Overview](#overview)
+
 - [Video Demonstration](#video-demonstration)
-- [Features](#features)
+- [Overview](#overview)
+- [System Requirements](#system-requirements)
 - [Installation](#installation)
-- [Usage](#usage)
+- [Modifications and Changes](#modifications-and-changes)
+- [Building the Firmware](#building-the-firmware)
+- [Simulation Guidelines](#simulation-guidelines)
 - [Proof of Concept](#proof-of-concept)
-- [Performance Metrics](#performance-metrics)
-- [Challenges and Lessons Learned](#challenges-and-lessons-learned)
-- [Future Scope](#future-scope)
-- [References](#references)
-- [Contributors](#contributors)
 
-## Overview
-This repository contains the implementation of a robust position and altitude control algorithm designed to handle single motor failure in quadrotors. The project, presented at **Inter IIT Tech Meet 13.0**, enhances the PX4 firmware to detect motor failures dynamically and ensure stable flight under adverse conditions.
-
-### Modifications and Changes
-Key modifications and enhancements include:
-- **Motor Failure Plugin**: Integrated a plugin to simulate motor failures for testing stability and control responses.
-- **EKF2 Tuning**: Fine-tuned the Extended Kalman Filter (EKF2) parameters to enhance state estimation accuracy.
-- **Custom Parameters and Topics**: Introduced new parameters such as `EKF2_MOT_F` and custom uORB topics for better communication and control.
-- **Control Algorithm Enhancements**: Updated control logic to maintain stability during motor failures, including adaptive control strategies using Principal Axis (PA), Nonlinear Dynamic Inversion (NDI), and Incremental NDI (INDI) algorithms.
+---
 
 ## Video Demonstration
-To see the firmware modifications in action, including the simulation of motor failure and the enhanced control algorithms, check out the video demonstration linked below:
 
-[Video Demonstration of Modified PX4 Firmware for Motor Failure Scenarios](https://drive.google.com/drive/folders/1Y6v7U1SYYdSvZkmqinqmErPtkiqChUPh?usp=sharing)
+To see the firmware modifications in action, including the simulation of motor failure and the enhanced control algorithms, check out the video demonstration provided [here](https://drive.google.com/drive/folders/1icqGDsD8RpMCed0sepqf204edmQgCSzS?usp=sharing).
 
-## Features
-### Motor Failure Detection
-1. **RPY Error-Based Detection**: Detects sudden discrepancies in roll, pitch, and yaw during failures.
-2. **ESC Data Monitoring**: Identifies abnormal current, voltage, or RPM metrics to localize failures.
+---
 
-### Enhanced PX4 Firmware
-1. **Custom Modules**:
-   - `motor_failure_detect_custom`: Detects motor failures and publishes states via `uORB`.
-   - `accel_indi`: Publishes critical data for fault-tolerant control.
-2. **EKF2 Enhancements**:
-   - Introduced a new parameter `EKF2_MOT_F` for failure tracking.
-3. **Control Logic**:
-   - Adaptive control using **Principal Axis (PA)** + NDI and INDI algorithms.
-   - Dynamic response through the PX4 Control Allocator.
+## Overview
 
-## Installation
-### Prerequisites
-- **Operating System**: Ubuntu 20.04 LTS or later.
-- **PX4 Autopilot**: Version 1.13.x or higher.
-- **ROS Noetic**: Full installation ([Guide](http://wiki.ros.org/noetic)).
-- **Gazebo**: Version 11.
+This modified PX4 firmware aims to enhance flight stability and control in the event of motor failures. The key modifications include:
 
-### Steps
-1. Clone the PX4 Autopilot repository:
-   ```bash
-   git clone https://github.com/PX4/PX4-Autopilot.git --recursive
-   cd PX4-Autopilot
-   ```
-2. Run the PX4 installation script:
-   ```bash
-   bash Tools/setup/ubuntu.sh --no-sim-tools
-   ```
-3. Install additional dependencies:
-   ```bash
+1. **Motor Failure Plugin**: Added a simulation plugin to trigger and analyze motor failures.
+3. **EKF2 Tuning**: Significant effort was dedicated to fine-tuning the Extended Kalman Filter 2 (EKF2) parameters to enhance sensor fusion and state estimation accuracy. This tuning process involved optimizing key parameters governing sensor noise levels, dynamic model behavior, and fusion dynamics. By carefully calibrating these parameters, the system achieved improved stability and precision, even under challenging conditions such as rapid maneuvers or external disturbances. These adjustments were critical for ensuring accurate motor failure detection and robust integration with the control allocator, ultimately contributing to the overall reliability and safety of the multicopter system.
+4. **Custom Parameter**: EKF2_MOT_F is a parameter introduced to represent the status of motor failures within PX4's enhanced detection and response framework. It encodes motor failure states as an integer, where a value of 0 indicates no failure, and values 1–4 correspond to specific motor failures. Dynamically updated by the custom detection logic, this parameter plays a crucial role in tracking and communicating motor failure information across the PX4 system, enabling efficient coordination between detection modules and control allocation processes.
+
+5. **Custom Uorb topic**: The estimatedpa uORB topic is a critical communication channel that provides information about the desired principal axis in both the inertial and body frames. The data published to this topic is derived from the desired acceleration setpoint generated by the position controller, ensuring that system actions accurately reflect the controller's acceleration demands.
+2. **Motor Failure Detection Module**: The motor detection algorithm triggers flags when either the
+Roll-Pitch-Yaw (RPY) error or ESC error data exceeded flight mode-specific thresholds. A statistical
+approach was used to identify optimal thresholds that dynamically adapt according to the flight mode,
+leading to improved detection performance in Manual and Acro Modes, alongside an impressive 95%
+accuracy in Position Mode. While smaller thresholds improved accuracy, they also increased false
+detections, demonstrating the system’s robustness under various conditions
+3. **Accel Indi Module**: The `accel_indi` module is a custom middleware component designed to act as an intermediary between the outer loop controller (position control) and lower-level systems. It subscribes to essential input data, such as sensor readings or control parameters, processes this data, and publishes the results to a custom topic named estimatedpa. This module ensures seamless communication and accurate data flow, aligning the middleware functionality with the controller’s requirements.
+5. **Control Allocator Integration**: The PX4 Control Allocator was enhanced to respond dynamically to motor failures detected by the custom motor failure detection module. Upon detecting a failure, the allocator listens for updates from the failure_detector_status uORB topic and automatically removes the row corresponding to the failed motor from the effectiveness matrix. This ensures that the failed motor is excluded from the control allocation process, preventing instability during flight. 
+6. **Control Algorithm Modifications**: Updated PX4 control logic to maintain stability when a motor failure is detected.
+9. **POC Simulation**: The development and testing of the PX4-based motor failure detection and control system leveraged a robust simulation environment designed to validate the system's functionality and performance. As part of the Proof-of-Concept (POC) setup, the rotors simulator package played a pivotal role, offering tools such as rotors description, rotors control, and Gazebo plugins. These components enabled realistic testing scenarios, ensuring accurate simulation of motor failures and multicopter dynamics. This integrated setup was critical for verifying the detection and control mechanisms before transitioning to real-world applications.
+---
+
+## System Requirements
+
+Before you begin, ensure you have the following:
+
+- **Operating System**: Ubuntu 18.04 or later recommended for a stable build environment.
+- **Processor**: Multi-core processor (Intel i5 or AMD Ryzen 5 and above) with virtualization support for smooth simulation and quick processing of motor failure scenarios.
+- **RAM**: At least 8 GB of RAM, though 16 GB is recommended for handling complex simulations and concurrent processes.
+- **ROS Noetic**: Follow the ROS Noetic [Installation Guide](https://docs.px4.io/) (ros-noetic-desktop-full is recommended).
+
+---
+
+# Installation
+
+### Install PX4
+If you're working with [ROS Noetic](http://wiki.ros.org/noetic) on Ubuntu 20.04:
+
+1. Install PX4 without the simulator toolchain:
+
+   1. [Download PX4 Source Code](../dev_setup/building_px4.md):
+
+      ```sh
+      git clone https://github.com/PX4/PX4-Autopilot.git --recursive
+      ```
+
+   1. Run the **ubuntu.sh** the `--no-sim-tools` (and optionally `--no-nuttx`):
+
+      ```sh
+      bash ./PX4-Autopilot/Tools/setup/ubuntu.sh --no-sim-tools --no-nuttx
+      ```
+
+      - Acknowledge any prompts as the script progress.
+
+   1. Restart the computer on completion.
+
+1. You _may_ need to install the following additional dependencies:
+
+   ```sh
    sudo apt-get install protobuf-compiler libeigen3-dev libopencv-dev -y
    ```
-4. Replace the following PX4 modules/files with the custom modules provided in this repository:
-   - `motor_failure_detect_custom`
-   - `accel_indi`
-   - `mc_pos_control`
-   - `mc_rate_control`
 
-5. Rebuild the PX4 firmware:
-   ```bash
-   make px4_sitl gazebo-classic
-   ```
+### Install MAVROS
+
+#### Binary Installation (Debian / Ubuntu)
+
+The ROS repository has binary packages for Ubuntu x86, amd64 (x86_64) and armhf (ARMv7).
+Kinetic also supports Debian Jessie amd64 and arm64 (ARMv8).
+
+Use `apt-get` for installation, where `${ROS_DISTRO}` below should resolve to `kinetic` or `noetic`, depending on your version of ROS:
+
+```sh
+sudo apt-get install ros-${ROS_DISTRO}-mavros ros-${ROS_DISTRO}-mavros-extras ros-${ROS_DISTRO}-mavros-msgs
+```
+
+Then install [GeographicLib](https://geographiclib.sourceforge.io/) datasets by running the `install_geographiclib_datasets.sh` script:
+
+```sh
+wget https://raw.githubusercontent.com/mavlink/mavros/master/mavros/scripts/install_geographiclib_datasets.sh
+sudo bash ./install_geographiclib_datasets.sh
+```
+To check if the installation was successful, navigate to the PX4 directory and run the following command:
+```sh
+make px4_sitl gazebo-classic
+```
+This should launch a gazebo world with the px4 iris drone.
 
 ---
+## Modifications and Changes
 
-## Usage
-### Running the Simulation
-1. Set up the Gazebo environment:
-   ```bash
-   source Tools/simulation/gazebo-classic/setup_gazebo.bash $(pwd) $(pwd)/build/px4_sitl_default
-   export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:$(pwd):$(pwd)/Tools/simulation/gazebo-classic/sitl_gazebo-classic
-   ```
-2. Launch the simulation:
-   ```bash
-   roslaunch px4 mavros_posix_sitl.launch
-   ```
-3. Start custom modules:
+### 1. Motor Failure Plugin
+- **Description**: Integrated a plugin to simulate motor failures for testing stability and control responses.
+- **Files Modified**:
+  - Replace the file [`gazebo_motor_failure_plugin.cpp`] in **/PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_gazebo-classic/src**
+  - Replace [`CMakeLists.txt`] file in **/PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_gazebo-classic**
+- **Modifying `iris.sdf.jinja`** or replace the iris model folder
+
+    To enable motor failure simulation, add the following plugin code to the **end** of the `iris.sdf.jinja` file:
+
+    ```xml
+    <plugin name='gazebo_motor_failure_plugin' filename='/<location_of_PX4>/PX4-Autopilot/build/px4_sitl_default/build_gazebo-classic/devel/lib/libgazebo_motor_failure_plugin.so'>
+      <robotNamespace/>
+      <ROSMotorNumSubTopic>/motor_failure/motor_number</ROSMotorNumSubTopic>
+      <MotorFailureNumPubTopic>/gazebo/motor_failure_num</MotorFailureNumPubTopic>
+    </plugin>
+    ```
+
+### 2. EKF2 Tuning Parameters
+- **Key Parameters Adjusted**:
+  - `EKF2_BARO_GATE`: *Inital Value*: 5.0 SD , *New Value*: 12.0 SD
+  - `EKF2_ACC_NOISE`: *Initial Value*: 0.35, *New Value*: 0.50
+  - `EKF2_HGT_REF`: *Initial Value*: GPS, *New Value*: Barometric Pressure
+
+### 3. Adding the `EKF2_MOT_F` custom parameter:
+- **Add the definition of the parameter in the `module.yaml` file in `src/modules/ekf2 `**:
+  - ```bash     
+      EKF2_MOT_F:
+      description:
+        short: Determines the motor failed
+        long: Determines which motor has failed. 0-> No Motor Failed, 1-> Motor 0
+          Failed, 2-> Motor 1 Failed, 3-> Motor 2 Failed, 4-> Motor 3 Failed
+      type: int32
+      default: 0
+      min: 0
+      max: 4 
+      ```
+- **Declare the parameter under DEFINE_PARAMETERS() function in `ekf2.hpp`**
+  - ```bash
+    ParamInt<px4::params::EKF2_MOT_F> _param_ekf2_mot_f;
+    ```
+  These changes have been added in the ekf2 module provided. It can directly be replaced in `/src/modules/`.
+### 4. Adding the `Estimatedpa` custom uorb topic:
+- Add the file `Estimatedpa.msg` given in the msg folder in `/PX4-Autopilot/msg/`
+- The `estimatedpa.h` file is automatically generated when PX4 is built.
+- Also replace the `CMakeLists.txt` in this directory with the provided one in the msg folder.
+
+### 5. Adding the Custom Modules
+
+To integrate the motor failure detection module into PX4, follow these steps:
+
+- #### Copy the Motor Failure Detection Module
+
+  1. Copy the entire module folder to the `PX4-Autopilot/src/modules` directory:
+
+       ```bash
+       cp -r /path/to/unzipped/module/folder PX4-Autopilot/src/modules/
+       ```
+
+- #### Update the PX4 Configuration
+
+    1. Open the `default.px4board` file located at `PX4-Autopilot/boards/px4/sitl`.
+    2. Add the following line at the end of the file to enable the motor failure detection module:
+
+       ```plaintext
+       CONFIG_MODULES_MOTOR_FAILURE_DETECT_CUSTOM=y
+       ```
+
+    This configuration enables the custom motor failure detection module in PX4 SITL. 
+- **Follow these same steps for adding the accel_indi module.** 
+### 6. Replacing the `mc_pos_control` and `mc_rate_control` modules
+Replace the default `mc_pos_control` and `mc_rate_control` modules with the modules that are provided.
+- The parameters `FTC_K_P`,`FTC_K_I` and `FTC_K_D` are defined in the `mc_rate_control_gain_param.c` file. These parameters were used to tune the INDI Controller.
+
+---
+## Building The Firmware
+- Navigate to the PX4 root directory and rebuild to apply the new configuration:
+    ```bash
+    cd PX4-Autopilot
+    make px4_sitl gazebo-classic
+    ```
+---
+
+## Simulation Guidelines
+
+### Running the Simulation:
+- Preparing the environment for simulation
+    ```sh
+    cd PX4_Autopilot #Navigate to your PX4 directory
+    source Tools/simulation/gazebo-classic/setup_gazebo.bash $(pwd) $(pwd)/build/px4_sitl_default
+    export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:$(pwd)
+    export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:$(pwd)/Tools/simulation/gazebo-classic/sitl_gazebo-classic
+    ```
+
+- Launch `mavros_posix_sitl.launch` for running the simulation in gazebo.
+    ```sh
+    roslaunch px4 mavros_posix_sitl.launch
+    ```
+### Start the custom modules:
+- Start the `motor_failure_detect_custom` module.
    ```bash
    motor_failure_detect_custom start
+   ```
+- Start the `accel_indi` module.
+   ```bash
    accel_indi start
    ```
-4. Simulate a motor failure by publishing the motor number:
+You can either launch the drone using [QGC](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html) or you can use the NFX shell of PX4 terminal
+
+### Injecting failure:
+- To simulate motor failure in PX4, publish the motor number you wish to disable to the `/motor_failure/motor_number` topic. This action will trigger the motor failure for the specified motor.
+
+    ```bash
+    rostopic pub -1 /motor_failure/motor_number std_msgs/Int32 "data:<motor_number(1,2,3,4)>"
+    ```
+---
+## Proof of Concept Simulation
+### Setup and Installation
+- Extract the `fault_tolerant_control` zipped folder and place it in the `/src` folder of your workspace. Also clone the following [package](https://github.com/ethz-asl/rotors_simulator) in the same direcotry.
+- Build the package 
    ```bash
-   rostopic pub -1 /motor_failure/motor_number std_msgs/Int32 "data:<motor_number>"
+   cd catkin_ws
+   catkin build
+   source devel/setup.bash
    ```
+### Running the Simulation
+- To launch the gazebo simulation
+   ```bash
+   roslaunch ftc_ctrl testSim.launch
+   ```
+- To takeoff the drone navigate to the `fault_tolerant_control/ftc_ctrl/scripts/` and run the `start_rotors.sh` file as follows
+   ```bash
+   cd <your_workspace>/src/fault_tolerant_control/ftc_ctrl/scripts/
+   ./start_rotors.sh iris   # Mentioning the model name is essential
+   ```
+- To move the drone to a particular point
+   ```bash
+   ./reference <x y z> iris
+   ```
+- To fail a motor of the drone
+   ```bash
+   ./stop_rotor.sh iris
+   ```
+    To specify which motor has failed, update the `failed_prop` parameter in the `simulation.yaml` file in the `fault_tolerant_control/ftc_ctrl/parameters/` directory. 
 
----
+    ```yaml
+    failed_prop: 1  # Options: 0, 1, 2, 3
+    ```
 
-## Proof of Concept
-
-### Simulation in Gazebo
-
-The verification of the fault-tolerant control system was conducted using Gazebo with the rotors simulator package. This setup allowed for the simulation of motor failure scenarios, and the results demonstrated the quadrotor's ability to maintain stability and perform controlled maneuvers despite a single motor failure.
-
-**Key observations:**
-
-- Exceptional stability during hovering.
-- Controlled descents and landings.
-- Precision in return-to-land (RTL) functionality.
-
-These simulations confirmed the feasibility and reliability of the fault-tolerant control system under simulated real-world conditions.
-
----
-
-## Performance Metrics
-- **Drift Analysis**: X and Y-axis drifts minimized to ~0.15m and ~0.3m respectively.
-- **Return-to-Land (RTL)**: Safe and accurate landings post-failure.
-- **Angular Velocities**: Smooth compensation for disturbances.
-
----
-
-## Challenges and Lessons Learned
-1. **Motor Failure Dynamics**: Addressed thrust imbalance using adaptive control.
-2. **Failsafe Management**: Enhanced robustness through dynamic parameter updates.
-3. **Tuning Parameters**: Fine-tuned constants for improved response under varying conditions.
-
----
-
-## Future Scope
-1. **Upset Recovery**: Incorporate advanced techniques for rapid stabilization post-failure.
-2. **Nonlinear Model Predictive Control (NMPC)**: Add an optimization layer for trajectory planning.
-3. **Hardware Integration**: Deploy the solution on physical quadrotors for real-world testing.
-
----
-
-## References
-1. [Final Report](IdeaForge_Final.pdf)
-
-2. [IEEE Robotics & Automation Magazine: Multirotor Aerial Vehicles](https://www.researchgate.net/publication/255786198_Multirotor_Aerial_Vehicles_Modeling_Estimation_and_Control_of_Quadrotor)
-3. [IEEE RAL: High-Speed Flight of Quadrotor Despite Loss of Single Rotor](https://www.researchgate.net/publication/326021895_High-Speed_Flight_of_Quadrotor_Despite_Loss_of_Single_Rotor)
+    After the motor failure, the drone automatically goes into pose hold position. The controller directly switches and the failed motor is removed from the effectiveness matrix.
 
 
----
-
-## Contributors
-- **Team 34** - IdeaForge Inter IIT Tech Meet 13.0
 

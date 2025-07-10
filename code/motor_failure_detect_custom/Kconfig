@@ -1,0 +1,12 @@
+menuconfig MODULES_MOTOR_FAILURE_DETECT_CUSTOM
+    bool "MOTOR FAILURE DETECT CUSTOM Module"
+    default y
+    ---help---
+        Enable support for MOTOR FAILURE DETECT CUSTOM module
+
+if MODULES_MOTOR_FAILURE_DETECT_CUSTOM
+    config MOTOR_FAILURE_DETECT_CUSTOM_PRIORITY
+        int "MOTOR FAILURE DETECT CUSTOM module task priority"
+        default SCHED_PRIORITY_DEFAULT
+        range SCHED_PRIORITY_MIN SCHED_PRIORITY_MAX
+endif

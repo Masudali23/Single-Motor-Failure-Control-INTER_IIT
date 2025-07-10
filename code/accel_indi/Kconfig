@@ -1,0 +1,6 @@
+menuconfig MODULES_ACCEL_INDI
+	bool "accel_indi"
+	default n
+	---help---
+		Enable support for indi_accels
+
